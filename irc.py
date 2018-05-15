@@ -18,7 +18,11 @@
 # author Salvo "LtWorf" Tomaselli <tiposchi@tiscali.it>
 
 import datetime
+<<<<<<< HEAD
 from enum import Enum
+=======
+import itertools
+>>>>>>> Sends smaller /names list.
 import re
 import select
 import socket
@@ -64,6 +68,10 @@ class Replies(Enum):
 
 #: Inactivity days to hide a MPIM
 MPIM_HIDE_DELAY = datetime.timedelta(days=50)
+
+
+#: Max users par /names line
+MAX_NAMES_USERS = 50
 
 
 class Client:
@@ -152,8 +160,8 @@ class Client:
         self._send_chan_info(channel_name, slchan)
 
     def _send_chan_info(self, channel_name: bytes, slchan: slack.Channel):
+        userlist = []  # type List[bytes]
         if not self.nouserlist:
-            userlist = []  # type List[bytes]
             for i in self.sl_client.get_members(slchan.id):
                 try:
                     u = self.sl_client.get_user(i)
@@ -166,11 +174,12 @@ class Client:
                 prefix = b'@' if u.is_admin else b''
                 userlist.append(prefix + name)
 
-            users = b' '.join(userlist)
-
         self.s.send(b':%s!salvo@127.0.0.1 JOIN %s\n' % (self.nick, channel_name))
         self._sendreply(Replies.RPL_TOPIC, slchan.real_topic, [channel_name])
-        self._sendreply(Replies.RPL_NAMREPLY, b'' if self.nouserlist else users, ['=', channel_name])
+
+        for _key, group in itertools.groupby(enumerate(userlist), lambda pair: pair[0] // MAX_NAMES_USERS):
+            users = b' '.join([user for _rank, user in group])
+            self._sendreply(Replies.RPL_NAMREPLY, b'' if self.nouserlist else users, ['=', channel_name])
         self._sendreply(Replies.RPL_ENDOFNAMES, 'End of NAMES list', [channel_name])
 
     def _privmsghandler(self, cmd: bytes) -> None:
